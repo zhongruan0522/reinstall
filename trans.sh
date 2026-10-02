@@ -5352,11 +5352,16 @@ install_deepin() {
 
     # 没有保留的内核则不删除
     if $has_keep_kernel; then
-        pkgs="$pkgs$kernel_pkgs"
+        # rolling 元包依赖最新 6.18 内核，不删除的话 apt 会重新安装 6.18
+        pkgs="$pkgs$kernel_pkgs linux-image-deepin-amd64 linux-headers-deepin-amd64"
     fi
 
     # 删除安装器和游戏，官方安装后不保留
     pkgs="$pkgs deepin-installer com.deepin.gomoku com.deepin.lianliankan"
+
+    # 防止 apt 补装桌面增强元包（体积巨大，安装时联网下载非常耗时）
+    # 文件已在盘上，只是 dpkg 数据库里状态是未安装
+    chroot $os_dir apt-mark hold deepin-desktop-environment-extras 2>/dev/null || true
     chroot_apt_remove $os_dir $pkgs
     if $has_keep_kernel; then
         for kernel_dir in $os_dir/lib/modules/*/; do
@@ -5380,7 +5385,8 @@ install_deepin() {
     # 镜像里的 /etc/default/locale 和 /etc/hosts 是空文件，官方安装器也是安装时写入的
     if is_in_china; then
         printf 'LANG="zh_CN.UTF-8"\nLANGUAGE="zh_CN"\n' >$os_dir/etc/default/locale
-        sed -i 's/^# \(zh_CN\.UTF-8.*$\)/\1/' $os_dir/etc/locale.gen
+        # 镜像的 locale.gen 未注释的行太多，全量生成非常耗时，重写只保留常用的
+        printf 'zh_CN.UTF-8 UTF-8\nen_US.UTF-8 UTF-8\n' >$os_dir/etc/locale.gen
         chroot $os_dir locale-gen
     fi
 
