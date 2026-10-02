@@ -7,7 +7,7 @@
 
 set -eE
 confhome=https://raw.githubusercontent.com/zhongruan0522/reinstall/deepin-dev
-confhome_cn=https://raw.githubusercontent.com/zhongruan0522/reinstall/deepin-dev
+confhome_cn=https://gh-proxy.com/https://raw.githubusercontent.com/zhongruan0522/reinstall/deepin-dev
 # confhome_cn=https://www.ghproxy.cc/https://raw.githubusercontent.com/bin456789/reinstall/main
 
 # 用于判断 reinstall.sh 和 trans.sh 是否兼容

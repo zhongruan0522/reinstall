@@ -3,7 +3,7 @@ mode con cp select=437 >nul
 setlocal EnableDelayedExpansion
 
 set confhome=https://raw.githubusercontent.com/zhongruan0522/reinstall/deepin-dev
-set confhome_cn=https://raw.githubusercontent.com/zhongruan0522/reinstall/deepin-dev
+set confhome_cn=https://gh-proxy.com/https://raw.githubusercontent.com/zhongruan0522/reinstall/deepin-dev
 rem set confhome_cn=https://www.ghproxy.cc/https://raw.githubusercontent.com/bin456789/reinstall/main
 
 set pkgs=curl,cpio,p7zip,dos2unix,jq,xz,gzip,zstd,openssl,bind-utils,libiconv,binutils
