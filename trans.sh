@@ -5361,7 +5361,13 @@ install_deepin() {
 
     # 防止 apt 补装桌面增强元包（体积巨大，安装时联网下载非常耗时）
     # 文件已在盘上，只是 dpkg 数据库里状态是未安装
-    chroot $os_dir apt-mark hold deepin-desktop-environment-extras 2>/dev/null || true
+    # 不能用 apt-mark hold: lastore 升级时带 --allow-change-held-packages 会绕过
+    # 仓库中无任何包依赖它，Pin-Priority -1 不会引起依赖冲突
+    cat <<EOF >$os_dir/etc/apt/preferences.d/no-deepin-desktop-environment-extras
+Package: deepin-desktop-environment-extras
+Pin: release *
+Pin-Priority: -1
+EOF
     chroot_apt_remove $os_dir $pkgs
     if $has_keep_kernel; then
         for kernel_dir in $os_dir/lib/modules/*/; do
@@ -5487,6 +5493,51 @@ EOF
 
     # 时区 / machine-id / ssh / 用户名密码 / fix eth name / frpc
     basic_init $os_dir
+
+    # deepin 25 桌面不支持 root 会话，root 登录时控制中心部分模块加载异常
+    # 用户未指定用户名时，创建桌面用户用于图形登录，密码同 root
+    if [ "$username" = root ]; then
+        desktop_user=deepin
+        if ! grep -q "^$desktop_user:" $os_dir/etc/passwd; then
+            if [ -x $os_dir/bin/zsh ]; then
+                user_shell=/bin/zsh
+            else
+                user_shell=/bin/bash
+            fi
+            chroot $os_dir useradd -m -s $user_shell $desktop_user
+        fi
+
+        # 参考官方安装器 configure_users 钩子的分组
+        for group in sudo wheel users netdev storage lp lpadmin scanner network; do
+            if grep -q "^$group:" $os_dir/etc/group; then
+                chroot $os_dir usermod -aG "$group" $desktop_user
+            fi
+        done
+
+        # sudo 免密
+        install -d -m 0750 $os_dir/etc/sudoers.d
+        printf '%s\n' "$desktop_user ALL=(ALL) NOPASSWD:ALL" >$os_dir/etc/sudoers.d/99-$desktop_user
+        chmod 0440 $os_dir/etc/sudoers.d/99-$desktop_user
+
+        # 密码
+        if is_password_plaintext; then
+            printf '%s\n' "$desktop_user:$(get_password_plaintext)" | chroot $os_dir chpasswd
+        else
+            printf '%s\n' "$desktop_user:$(get_password_linux_sha512)" | chroot $os_dir chpasswd -e
+        fi
+    fi
+
+    # 控制中心-更新默认走磐石(ostree)原子更新，即调用 deepin-immutable-ctl upgrade
+    # 本系统直接铺 squashfs，没有 ostree 结构，更新必然失败
+    # 关闭增量更新后，lastore 走原生 apt dist-upgrade 路径
+    apk add jq
+    dsg_conf=$os_dir/usr/share/dsg/configs/org.deepin.dde.lastore/org.deepin.dde.lastore.json
+    [ -f "$dsg_conf" ] || error_and_exit "lastore dsg config not found: $dsg_conf"
+    jq -e '.contents."incremental-update".value' "$dsg_conf" >/dev/null ||
+        error_and_exit "incremental-update not found in $dsg_conf"
+    jq '.contents."incremental-update".value = false' "$dsg_conf" >"$dsg_conf.new" &&
+        mv "$dsg_conf.new" "$dsg_conf"
+    apk del jq
 
     # 恢复应用商店源
     mv $os_dir/etc/apt/sources.list.d/appstore.list.disabled $os_dir/etc/apt/sources.list.d/appstore.list 2>/dev/null || true
